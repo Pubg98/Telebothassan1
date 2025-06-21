@@ -1,10 +1,12 @@
-from telethon.sync import TelegramClient, events
+from telethon import TelegramClient, events
 from telethon.errors import SessionPasswordNeededError
 from telethon.tl.types import MessageMediaPhoto, MessageMediaDocument
 import re
 from flask import Flask
 from threading import Thread
+import asyncio
 
+# --- إعداد Flask للحفاظ على البوت حي في Render ---
 app = Flask('')
 
 @app.route('/')
@@ -18,51 +20,19 @@ def keep_alive():
     t = Thread(target=run)
     t.start()
 
-# بيانات تسجيل الدخول
+# --- بيانات Telegram API ---
 api_id = 24472149
 api_hash = 'df7d7fa5c8d628b9bf822ef793598747'
 phone = '+9647810424454'
 
-import time
-import os
-from telethon.errors import AuthKeyDuplicatedError
+# --- إنشاء عميل Telethon ---
+client = TelegramClient('user_session', api_id, api_hash)
 
-# استخدام اسم جلسة فريد مع الوقت الحالي
-session_name = f'user_session_{int(time.time())}'
-client = TelegramClient(session_name, api_id, api_hash)
+# --- دوال مساعدة ---
 
-try:
-    client.connect()
-except AuthKeyDuplicatedError:
-    print("🔄 حدث تضارب في الجلسة، إنشاء جلسة جديدة...")
-    # حذف ملف الجلسة القديم إذا كان موجوداً
-    old_session_files = [f for f in os.listdir('.') if f.startswith('user_session') and f.endswith('.session')]
-    for session_file in old_session_files:
-        try:
-            os.remove(session_file)
-            print(f"🗑 تم حذف ملف الجلسة القديم: {session_file}")
-        except:
-            pass
-    
-    # إنشاء جلسة جديدة
-    session_name = f'user_session_new_{int(time.time())}'
-    client = TelegramClient(session_name, api_id, api_hash)
-    client.connect()
-
-if not client.is_user_authorized():
-    client.send_code_request(phone)
-    code = input("📩 أدخل كود التحقق من Telegram: ")
-    try:
-        client.sign_in(phone, code)
-    except SessionPasswordNeededError:
-        password = input("🔐 الحساب محمي بكلمة مرور، أدخلها: ")
-        client.sign_in(password=password)
-
-# 🧽 تنظيف النص
 def remove_links(text):
     return re.sub(r'http\S+|www\S+|t\.me\S+|bit\.ly\S+', '', text).strip().lower()
 
-# 🔍 استخراج معرف الوسائط
 def get_media_id(msg):
     if isinstance(msg.media, MessageMediaPhoto):
         return f"photo_{msg.media.photo.id}"
@@ -70,7 +40,6 @@ def get_media_id(msg):
         return f"doc_{msg.media.document.id}"
     return None
 
-# 🧹 دالة حذف التكرار من القناة
 async def delete_duplicates_in_channel(new_msg):
     target_channel = 'imamhussains'
     clean_text = remove_links(new_msg.message or "")
@@ -98,6 +67,8 @@ async def handler(event):
         sent = await client.send_file('imamhussains', file=msg.media, caption=clean_caption or None)
     elif clean_caption:
         sent = await client.send_message('imamhussains', clean_caption)
+    else:
+        return
 
     await delete_duplicates_in_channel(sent)
 
@@ -111,9 +82,45 @@ async def edited_handler(event):
         sent = await client.send_file('imamhussains', file=msg.media, caption=clean_caption or None)
     elif clean_caption:
         sent = await client.send_message('imamhussains', clean_caption)
+    else:
+        return
 
     await delete_duplicates_in_channel(sent)
 
-keep_alive()
-print("✅ البوت يعمل الآن ويراقب القنوات المحددة ويحذف التكرارات...")
-client.run_until_disconnected()
+# --- تنظيف الرسائل القديمة عند التشغيل ---
+
+async def full_deduplication():
+    print("🔍 بدأ فحص الرسائل السابقة...")
+    seen_texts = {}
+    seen_media = {}
+
+    async for msg in client.iter_messages('imamhussains', reverse=True):  # من الأقدم للأحدث
+        msg_text = remove_links(msg.message or "")
+        media_id = get_media_id(msg)
+
+        if msg_text:
+            if msg_text in seen_texts:
+                await msg.delete()
+                print(f"🗑 حذف رسالة مكررة (نص): {msg.id}")
+            else:
+                seen_texts[msg_text] = msg.id
+        elif media_id:
+            if media_id in seen_media:
+                await msg.delete()
+                print(f"🗑 حذف وسائط مكررة: {msg.id}")
+            else:
+                seen_media[media_id] = msg.id
+
+    print("✅ انتهى فحص الرسائل القديمة.")
+
+# --- تشغيل كل شيء ---
+
+async def main():
+    await client.start(phone=phone)  # يبدأ الاتصال تلقائياً (يدير التوثيق)
+    print("✅ البوت شغال ويراقب القنوات المحددة ...")
+    await full_deduplication()
+    await client.run_until_disconnected()
+
+if _name_ == '_main_':
+    keep_alive()  # يشغل سيرفر Flask في ثريد منفصل
+    client.loop.run_until_complete(main())
