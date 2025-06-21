@@ -121,6 +121,6 @@ async def main():
     await full_deduplication()
     await client.run_until_disconnected()
 
-if _name_ == '_main_':
+if __name__ == '__main__':
     keep_alive()  # يشغل سيرفر Flask في ثريد منفصل
     client.loop.run_until_complete(main())
