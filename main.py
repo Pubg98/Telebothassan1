@@ -55,7 +55,21 @@ async def handler(event):
         )
     elif clean_caption:
         await client.send_message('imamhussains', clean_caption)
+@client.on(events.MessageEdited(chats=channels))
+async def edited_handler(event):
+    msg = event.message
+    text = msg.message or ""
+    clean_caption = remove_links(text)
 
+    if msg.media:
+        await client.send_file(
+            'imamhussains',
+            file=msg.media,
+            caption=clean_caption if clean_caption else None
+        )
+    elif clean_caption:
+        await client.send_message('imamhussains', clean_caption)
+        
 keep_alive()
 
 print("✅ البوت يعمل الآن ويراقب القنوات المحددة...")
