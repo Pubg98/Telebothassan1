@@ -23,8 +23,31 @@ api_id = 24472149
 api_hash = 'df7d7fa5c8d628b9bf822ef793598747'
 phone = '+9647810424454'
 
-client = TelegramClient('user_session', api_id, api_hash)
-client.connect()
+import time
+import os
+from telethon.errors import AuthKeyDuplicatedError
+
+# استخدام اسم جلسة فريد مع الوقت الحالي
+session_name = f'user_session_{int(time.time())}'
+client = TelegramClient(session_name, api_id, api_hash)
+
+try:
+    client.connect()
+except AuthKeyDuplicatedError:
+    print("🔄 حدث تضارب في الجلسة، إنشاء جلسة جديدة...")
+    # حذف ملف الجلسة القديم إذا كان موجوداً
+    old_session_files = [f for f in os.listdir('.') if f.startswith('user_session') and f.endswith('.session')]
+    for session_file in old_session_files:
+        try:
+            os.remove(session_file)
+            print(f"🗑 تم حذف ملف الجلسة القديم: {session_file}")
+        except:
+            pass
+    
+    # إنشاء جلسة جديدة
+    session_name = f'user_session_new_{int(time.time())}'
+    client = TelegramClient(session_name, api_id, api_hash)
+    client.connect()
 
 if not client.is_user_authorized():
     client.send_code_request(phone)
