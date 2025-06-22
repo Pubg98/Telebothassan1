@@ -54,37 +54,32 @@ async def delete_duplicates_in_channel(new_msg):
             await msg.delete()
             print(f"🗑 حذف مكرر (ID: {msg.id})")
 
+# --- القنوات المصدر ---
 channels = ['SabrenNews22', 'MydoctorA96', 'kararhassan']
 
+# --- دالة معالجة الرسائل ---
+async def process_message(msg):
+    text = msg.message or ""
+    clean_caption = remove_links(text)
+
+    if msg.media:
+        sent = await client.send_file('imamhussains', file=msg.media, caption=clean_caption or None)
+    elif clean_caption:
+        sent = await client.send_message('imamhussains', clean_caption)
+    else:
+        return
+    print(f"📤 أُرسلت رسالة من: {msg.chat_id}")
+    await delete_duplicates_in_channel(sent)
+
+# --- مراقبة الرسائل الجديدة ---
 @client.on(events.NewMessage(chats=channels))
 async def handler(event):
-    msg = event.message
-    text = msg.message or ""
-    clean_caption = remove_links(text)
+    await process_message(event.message)
 
-    if msg.media:
-        sent = await client.send_file('imamhussains', file=msg.media, caption=clean_caption or None)
-    elif clean_caption:
-        sent = await client.send_message('imamhussains', clean_caption)
-    else:
-        return
-
-    await delete_duplicates_in_channel(sent)
-
+# --- مراقبة الرسائل المعدلة ---
 @client.on(events.MessageEdited(chats=channels))
 async def edited_handler(event):
-    msg = event.message
-    text = msg.message or ""
-    clean_caption = remove_links(text)
-
-    if msg.media:
-        sent = await client.send_file('imamhussains', file=msg.media, caption=clean_caption or None)
-    elif clean_caption:
-        sent = await client.send_message('imamhussains', clean_caption)
-    else:
-        return
-
-    await delete_duplicates_in_channel(sent)
+    await process_message(event.message)
 
 # --- تنظيف الرسائل القديمة عند التشغيل ---
 async def full_deduplication():
@@ -92,7 +87,7 @@ async def full_deduplication():
     seen_texts = {}
     seen_media = {}
 
-    async for msg in client.iter_messages('imamhussains', reverse=True):
+    async for msg in client.iter_messages('imamhussains', reverse=True, limit=1000):
         msg_text = remove_links(msg.message or "")
         media_id = get_media_id(msg)
 
@@ -111,12 +106,12 @@ async def full_deduplication():
 
     print("✅ انتهى فحص الرسائل القديمة.")
 
-# --- تشغيل كل شيء ---
+# --- تشغيل البوت وكل شيء ---
 async def main():
     try:
         await client.start(phone=phone)
     except SessionPasswordNeededError:
-        await client.sign_in(password='هنا كلمة السر')  # أدخل كلمة السر لو كان عندك 2FA
+        await client.sign_in(password='KararH@1999@1')  # ← كلمة السر 2FA هنا
 
     print("✅ البوت شغال ويراقب القنوات المحددة ...")
     await full_deduplication()
