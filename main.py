@@ -29,7 +29,6 @@ phone = '+9647810424454'
 client = TelegramClient('user_session', api_id, api_hash)
 
 # --- دوال مساعدة ---
-
 def remove_links(text):
     return re.sub(r'http\S+|www\S+|t\.me\S+|bit\.ly\S+', '', text).strip().lower()
 
@@ -88,13 +87,12 @@ async def edited_handler(event):
     await delete_duplicates_in_channel(sent)
 
 # --- تنظيف الرسائل القديمة عند التشغيل ---
-
 async def full_deduplication():
     print("🔍 بدأ فحص الرسائل السابقة...")
     seen_texts = {}
     seen_media = {}
 
-    async for msg in client.iter_messages('imamhussains', reverse=True):  # من الأقدم للأحدث
+    async for msg in client.iter_messages('imamhussains', reverse=True):
         msg_text = remove_links(msg.message or "")
         media_id = get_media_id(msg)
 
@@ -114,13 +112,16 @@ async def full_deduplication():
     print("✅ انتهى فحص الرسائل القديمة.")
 
 # --- تشغيل كل شيء ---
-
 async def main():
-    await client.start(phone=phone)  # يبدأ الاتصال تلقائياً (يدير التوثيق)
+    try:
+        await client.start(phone=phone)
+    except SessionPasswordNeededError:
+        await client.sign_in(password='هنا كلمة السر')  # أدخل كلمة السر لو كان عندك 2FA
+
     print("✅ البوت شغال ويراقب القنوات المحددة ...")
     await full_deduplication()
     await client.run_until_disconnected()
 
 if __name__ == '__main__':
-    keep_alive()  # يشغل سيرفر Flask في ثريد منفصل
-    client.loop.run_until_complete(main())
+    keep_alive()  # تشغيل Flask في ثريد منفصل
+    asyncio.run(main())
